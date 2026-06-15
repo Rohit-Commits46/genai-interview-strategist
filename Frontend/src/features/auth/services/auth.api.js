@@ -6,12 +6,26 @@ const api = axios.create({
     withCredentials: true
 })
 
+// Attach token from localStorage to every request as Authorization header
+api.interceptors.request.use((config) => {
+    const token = localStorage.getItem("token")
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+})
+
 export async function register({ username, email, password }) {
 
     try {
         const response = await api.post('/api/auth/register', {
             username, email, password
         })
+
+        // Store token in localStorage for cross-domain auth
+        if (response.data.token) {
+            localStorage.setItem("token", response.data.token)
+        }
 
         return response.data
 
@@ -31,6 +45,11 @@ export async function login({ email, password }) {
             email, password
         })
 
+        // Store token in localStorage for cross-domain auth
+        if (response.data.token) {
+            localStorage.setItem("token", response.data.token)
+        }
+
         return response.data
 
     } catch (err) {
@@ -44,10 +63,13 @@ export async function logout() {
 
         const response = await api.get("/api/auth/logout")
 
+        // Clear token from localStorage
+        localStorage.removeItem("token")
+
         return response.data
 
     } catch (err) {
-
+        localStorage.removeItem("token")
     }
 }
 
