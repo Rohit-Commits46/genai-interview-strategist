@@ -1,4 +1,4 @@
-import { getAllInterviewReports, generateInterviewReport, getInterviewReportById, generateResumePdf } from "../services/interview.api"
+import { getAllInterviewReports, generateInterviewReport, getInterviewReportById, getResumeHtml } from "../services/interview.api"
 import { useContext, useEffect } from "react"
 import { InterviewContext } from "../interview.context"
 import { useParams } from "react-router"
@@ -60,14 +60,34 @@ export const useInterview = () => {
     const getResumePdf = async (interviewReportId) => {
         setLoading(true)
         try {
-            const response = await generateResumePdf({ interviewReportId })
-            const url = window.URL.createObjectURL(new Blob([ response ], { type: "application/pdf" }))
-            const link = document.createElement("a")
-            link.href = url
-            link.setAttribute("download", `resume_${interviewReportId}.pdf`)
-            document.body.appendChild(link)
-            link.click()
-            link.remove()
+            // Get HTML from backend
+            const response = await getResumeHtml({ interviewReportId })
+
+            if (!response || !response.html) {
+                throw new Error("No HTML content received from server")
+            }
+
+            // Convert HTML to PDF client-side using html2pdf.js
+            const html2pdf = (await import("html2pdf.js")).default
+
+            // Create a temporary container for the HTML
+            const container = document.createElement("div")
+            container.innerHTML = response.html
+            container.style.position = "absolute"
+            container.style.left = "-9999px"
+            container.style.top = "0"
+            document.body.appendChild(container)
+
+            await html2pdf().set({
+                margin: [10, 10, 10, 10],
+                filename: `resume_${interviewReportId}.pdf`,
+                image: { type: "jpeg", quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+            }).from(container).save()
+
+            // Clean up
+            document.body.removeChild(container)
         }
         catch (error) {
             console.error("getResumePdf error:", error)
