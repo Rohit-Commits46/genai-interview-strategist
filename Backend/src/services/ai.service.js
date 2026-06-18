@@ -7,8 +7,8 @@ const ai = new GoogleGenAI({
     apiKey: process.env.GOOGLE_GENAI_API_KEY
 })
 
-// Primary and fallback models — preview models have rate limits
-const PRIMARY_MODEL = "gemini-2.5-flash-preview-05-20"
+// Primary and fallback models
+const PRIMARY_MODEL = "gemini-3-flash-preview"
 const FALLBACK_MODEL = "gemini-2.0-flash"
 
 /**
