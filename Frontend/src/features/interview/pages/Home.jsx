@@ -13,9 +13,29 @@ const Home = () => {
     const navigate = useNavigate()
 
     const handleGenerateReport = async () => {
-        const resumeFile = resumeInputRef.current.files[ 0 ]
-        const data = await generateReport({ jobDescription, selfDescription, resumeFile })
-        navigate(`/interview/${data._id}`)
+        if (!jobDescription.trim()) {
+            alert("Please provide a job description.")
+            return
+        }
+
+        const resumeFile = resumeInputRef.current?.files?.[0] || null
+
+        if (!resumeFile && !selfDescription.trim()) {
+            alert("Please upload a resume or provide a self description.")
+            return
+        }
+
+        try {
+            const data = await generateReport({ jobDescription, selfDescription, resumeFile })
+            if (data && data._id) {
+                navigate(`/interview/${data._id}`)
+            } else {
+                alert("Failed to generate interview strategy. Please try again.")
+            }
+        } catch (err) {
+            console.error("handleGenerateReport error:", err)
+            alert("Something went wrong. Please try again.")
+        }
     }
 
     if (loading) {
