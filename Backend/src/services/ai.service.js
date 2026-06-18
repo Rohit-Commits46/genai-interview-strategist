@@ -7,6 +7,65 @@ const ai = new GoogleGenAI({
     apiKey: process.env.GOOGLE_GENAI_API_KEY
 })
 
+// Primary and fallback models — preview models have rate limits
+const PRIMARY_MODEL = "gemini-2.5-flash-preview-05-20"
+const FALLBACK_MODEL = "gemini-2.0-flash"
+
+/**
+ * @description Calls the Gemini API with automatic retry and model fallback.
+ * Retries up to 2 times on transient errors (503, 429), then falls back to a stable model.
+ */
+async function callGeminiWithRetry({ prompt, responseSchema, maxRetries = 2 }) {
+    let lastError = null
+
+    // Try primary model with retries
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await ai.models.generateContent({
+                model: PRIMARY_MODEL,
+                contents: prompt,
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: zodToJsonSchema(responseSchema),
+                }
+            })
+            return JSON.parse(response.text)
+        } catch (err) {
+            lastError = err
+            console.error(`Gemini API attempt ${attempt + 1} failed (${PRIMARY_MODEL}):`, err.message || err)
+
+            // Only retry on transient errors (503 UNAVAILABLE, 429 RATE_LIMIT)
+            const errorStr = JSON.stringify(err)
+            const isTransient = errorStr.includes("503") || errorStr.includes("429") || errorStr.includes("UNAVAILABLE") || errorStr.includes("RESOURCE_EXHAUSTED")
+            if (!isTransient) break
+
+            // Wait before retrying (exponential backoff)
+            if (attempt < maxRetries) {
+                const waitMs = (attempt + 1) * 2000
+                console.log(`Retrying in ${waitMs}ms...`)
+                await new Promise(resolve => setTimeout(resolve, waitMs))
+            }
+        }
+    }
+
+    // Fallback to stable model
+    console.log(`Falling back to ${FALLBACK_MODEL}...`)
+    try {
+        const response = await ai.models.generateContent({
+            model: FALLBACK_MODEL,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: zodToJsonSchema(responseSchema),
+            }
+        })
+        return JSON.parse(response.text)
+    } catch (fallbackErr) {
+        console.error(`Fallback model (${FALLBACK_MODEL}) also failed:`, fallbackErr.message || fallbackErr)
+        throw lastError || fallbackErr
+    }
+}
+
 
 const interviewReportSchema = z.object({
     matchScore: z.number().describe("A score between 0 and 100 indicating how well the candidate's profile matches the job describe"),
@@ -34,25 +93,13 @@ const interviewReportSchema = z.object({
 
 async function generateInterviewReport({ resume, selfDescription, jobDescription }) {
 
-
     const prompt = `Generate an interview report for a candidate with the following details:
                         Resume: ${resume}
                         Self Description: ${selfDescription}
                         Job Description: ${jobDescription}
 `
 
-    const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: zodToJsonSchema(interviewReportSchema),
-        }
-    })
-
-    return JSON.parse(response.text)
-
-
+    return await callGeminiWithRetry({ prompt, responseSchema: interviewReportSchema })
 }
 
 
@@ -103,17 +150,7 @@ async function generateResumePdf({ resume, selfDescription, jobDescription }) {
                         The resume should not be so lengthy, it should ideally be 1-2 pages long when converted to PDF. Focus on quality rather than quantity and make sure to include all the relevant information that can increase the candidate's chances of getting an interview call for the given job description.
                     `
 
-    const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: zodToJsonSchema(resumePdfSchema),
-        }
-    })
-
-
-    const jsonContent = JSON.parse(response.text)
+    const jsonContent = await callGeminiWithRetry({ prompt, responseSchema: resumePdfSchema })
 
     const pdfBuffer = await generatePdfFromHtml(jsonContent.html)
 
