@@ -105,7 +105,36 @@ async function generateInterviewReport({ resume, selfDescription, jobDescription
 
 
 async function generatePdfFromHtml(htmlContent) {
-    const browser = await puppeteer.launch({
+    const fs = require("fs")
+    const path = require("path")
+
+    // Find Chrome executable - needed on Render where default cache lookup can fail
+    let executablePath = undefined
+    const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(require("os").homedir(), ".cache", "puppeteer")
+    
+    if (fs.existsSync(cacheDir)) {
+        // Search for chrome binary recursively
+        const findChrome = (dir) => {
+            try {
+                const entries = fs.readdirSync(dir, { withFileTypes: true })
+                for (const entry of entries) {
+                    const fullPath = path.join(dir, entry.name)
+                    if (entry.isFile() && entry.name === "chrome" && !entry.name.includes(".")) {
+                        return fullPath
+                    }
+                    if (entry.isDirectory()) {
+                        const found = findChrome(fullPath)
+                        if (found) return found
+                    }
+                }
+            } catch (e) { /* ignore permission errors */ }
+            return null
+        }
+        executablePath = findChrome(cacheDir)
+        if (executablePath) console.log("Found Chrome at:", executablePath)
+    }
+
+    const launchOptions = {
         headless: true,
         args: [
             "--no-sandbox",
@@ -113,7 +142,10 @@ async function generatePdfFromHtml(htmlContent) {
             "--disable-dev-shm-usage",
             "--disable-gpu"
         ]
-    })
+    }
+    if (executablePath) launchOptions.executablePath = executablePath
+
+    const browser = await puppeteer.launch(launchOptions)
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: "networkidle0" })
 
