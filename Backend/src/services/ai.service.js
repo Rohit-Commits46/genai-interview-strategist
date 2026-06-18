@@ -15,7 +15,7 @@ const FALLBACK_MODEL = "gemini-2.0-flash"
  * @description Calls the Gemini API with automatic retry and model fallback.
  * Retries up to 2 times on transient errors (503, 429), then falls back to a stable model.
  */
-async function callGeminiWithRetry({ prompt, responseSchema, maxRetries = 2 }) {
+async function callGeminiWithRetry({ prompt, responseSchema, maxRetries = 3 }) {
     let lastError = null
 
     // Try primary model with retries
@@ -32,17 +32,17 @@ async function callGeminiWithRetry({ prompt, responseSchema, maxRetries = 2 }) {
             return JSON.parse(response.text)
         } catch (err) {
             lastError = err
-            console.error(`Gemini API attempt ${attempt + 1} failed (${PRIMARY_MODEL}):`, err.message || err)
+            const errMsg = String(err.message || err)
+            console.error(`Gemini API attempt ${attempt + 1}/${maxRetries + 1} failed (${PRIMARY_MODEL}):`, errMsg)
 
             // Only retry on transient errors (503 UNAVAILABLE, 429 RATE_LIMIT)
-            const errorStr = JSON.stringify(err)
-            const isTransient = errorStr.includes("503") || errorStr.includes("429") || errorStr.includes("UNAVAILABLE") || errorStr.includes("RESOURCE_EXHAUSTED")
+            const isTransient = errMsg.includes("503") || errMsg.includes("429") || errMsg.includes("UNAVAILABLE") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("high demand")
             if (!isTransient) break
 
-            // Wait before retrying (exponential backoff)
+            // Wait before retrying (exponential backoff: 3s, 6s, 9s)
             if (attempt < maxRetries) {
-                const waitMs = (attempt + 1) * 2000
-                console.log(`Retrying in ${waitMs}ms...`)
+                const waitMs = (attempt + 1) * 3000
+                console.log(`Retrying in ${waitMs / 1000}s...`)
                 await new Promise(resolve => setTimeout(resolve, waitMs))
             }
         }
