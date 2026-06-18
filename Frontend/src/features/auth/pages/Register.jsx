@@ -9,12 +9,17 @@ const Register = () => {
     const [ email, setEmail ] = useState("")
     const [ password, setPassword ] = useState("")
 
-    const {loading,handleRegister} = useAuth()
+    const {loading, user, handleRegister} = useAuth()
     
     const handleSubmit = async (e) => {
         e.preventDefault()
         await handleRegister({username,email,password})
-        navigate("/")
+    }
+
+    // Navigate to home when user is authenticated
+    if (user) {
+        navigate('/')
+        return null
     }
 
     if(loading){

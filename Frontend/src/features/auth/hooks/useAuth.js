@@ -14,9 +14,14 @@ export const useAuth = () => {
         setLoading(true)
         try {
             const data = await login({ email, password })
-            setUser(data.user)
+            if (data && data.user) {
+                setUser(data.user)
+            } else {
+                alert("Login failed. Please check your email and password.")
+            }
         } catch (err) {
-
+            console.error("Login error:", err)
+            alert("Login failed. Please try again.")
         } finally {
             setLoading(false)
         }
@@ -26,9 +31,14 @@ export const useAuth = () => {
         setLoading(true)
         try {
             const data = await register({ username, email, password })
-            setUser(data.user)
+            if (data && data.user) {
+                setUser(data.user)
+            } else {
+                alert("Registration failed. Account may already exist.")
+            }
         } catch (err) {
-
+            console.error("Register error:", err)
+            alert("Registration failed. Please try again.")
         } finally {
             setLoading(false)
         }
@@ -37,10 +47,11 @@ export const useAuth = () => {
     const handleLogout = async () => {
         setLoading(true)
         try {
-            const data = await logout()
+            await logout()
             setUser(null)
         } catch (err) {
-
+            console.error("Logout error:", err)
+            setUser(null)
         } finally {
             setLoading(false)
         }
@@ -50,9 +61,10 @@ export const useAuth = () => {
 
         const getAndSetUser = async () => {
             try {
-
                 const data = await getMe()
-                setUser(data.user)
+                if (data && data.user) {
+                    setUser(data.user)
+                }
             } catch (err) { } finally {
                 setLoading(false)
             }
