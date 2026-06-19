@@ -70,24 +70,20 @@ export const useInterview = () => {
             // Convert HTML to PDF client-side using html2pdf.js
             const html2pdf = (await import("html2pdf.js")).default
 
-            // Create a temporary container for the HTML
-            const container = document.createElement("div")
-            container.innerHTML = response.html
-            container.style.position = "absolute"
-            container.style.left = "-9999px"
-            container.style.top = "0"
-            document.body.appendChild(container)
+            // Ensure the HTML has a basic wrapper for consistent styling if not provided
+            const htmlContent = `
+                <div style="font-family: sans-serif; color: #000; background: #fff; padding: 20px;">
+                    ${response.html}
+                </div>
+            `;
 
             await html2pdf().set({
                 margin: [10, 10, 10, 10],
                 filename: `resume_${interviewReportId}.pdf`,
                 image: { type: "jpeg", quality: 0.98 },
-                html2canvas: { scale: 2, useCORS: true },
+                html2canvas: { scale: 2, useCORS: true, logging: false },
                 jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
-            }).from(container).save()
-
-            // Clean up
-            document.body.removeChild(container)
+            }).from(htmlContent).save()
         }
         catch (error) {
             console.error("getResumePdf error:", error)
